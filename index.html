@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0d0d0d">
+<title>WB-SG1-8G Keypad Control</title>
+<style>
+:root{--bg:#0d0d0d;--panel:#16181d;--line:#2a2e36;--key:#1e2127;--txt:#e8eaed;--mut:#8b93a1;--ok:#00e676;--bad:#e53935;--acc:#7c6cf0;box-sizing:border-box}
+*{box-sizing:inherit;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--txt);font:16px/1.4 system-ui,Roboto,sans-serif;padding-bottom:40px}
+header{padding:14px 12px 8px;border-bottom:1px solid var(--line)}
+h1{margin:0;font-size:20px}
+h1 small{display:block;font-size:12px;color:var(--mut);font-weight:400;letter-spacing:.08em}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px;color:var(--mut)}
+button{font:inherit;color:var(--txt);background:var(--key);border:1px solid var(--line);border-radius:10px;padding:10px 14px;cursor:pointer}
+button:active{filter:brightness(1.4)}
+#conn{background:var(--bad);border-color:var(--bad);font-weight:600}
+#conn.on{background:#14633a;border-color:var(--ok)}
+.sw{position:relative;width:46px;height:26px;flex:none}
+.sw input{opacity:0;position:absolute;inset:0;margin:0;width:100%;height:100%;z-index:1}
+.sw i{position:absolute;inset:0;background:#333a44;border-radius:13px;transition:.15s}
+.sw i:after{content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s}
+.sw input:checked+i{background:var(--acc)}
+.sw input:checked+i:after{left:23px}
+input[type=range]{accent-color:var(--acc);width:130px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;border-bottom:1px solid var(--line);font:13px ui-monospace,monospace}
+.chip{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:3px 10px;color:var(--mut)}
+.chip:before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:#555;margin-right:6px}
+.chip.ok{color:var(--txt)}.chip.ok:before{background:var(--ok)}
+.chip.bad{color:#ff8a80}.chip.bad:before{background:var(--bad)}
+#note{padding:10px 12px;color:var(--mut);font-size:13px}
+.card{margin:12px;background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--ok);border-radius:14px;padding:14px}
+.card h2{margin:0;font-size:17px}
+.card p{margin:2px 0 10px;color:var(--mut);font-size:13px}
+.lcd{background:#000;border:1px solid var(--line);border-radius:10px;padding:8px 12px;text-align:right;font-family:ui-monospace,monospace}
+.live{font-size:12px;color:var(--mut);text-align:left}
+.val{font-size:30px;color:var(--ok);text-shadow:0 0 8px #00e67655}
+.inp{font-size:24px;min-height:54px;margin-top:8px;color:var(--txt)}
+.inp.err{color:#ff8a80}
+.units{display:flex;gap:8px;margin:10px 0}
+.units button{flex:1}
+.units button.sel{background:#0f4a2a;border-color:var(--ok);color:var(--ok)}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pad button{font-size:24px;padding:14px 0}
+.act{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.act .set{grid-column:1/3;background:#0f4a2a;border-color:var(--ok);color:var(--ok);font-weight:600}
+.act .off{color:#ff8a80}
+#dbg{display:none;margin:12px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+#dbg.show{display:block}
+#log{height:180px;overflow:auto;background:#000;border-radius:8px;padding:8px;font:12px ui-monospace,monospace;white-space:pre-wrap;word-break:break-all}
+.tx{color:#82b1ff}.rx{color:var(--ok)}.err{color:#ff8a80}.inf{color:#ffd54f}
+#dbg .row button{padding:8px 12px}
+#dbg input[type=text]{flex:1;min-width:0;background:#000;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font:14px ui-monospace,monospace}
+select{background:var(--key);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>WB-SG1-8G <small>Keypad front-end (USB)</small></h1>
+  <div class="row">
+    <label class="box">Beeper <span class="sw"><input type="checkbox" id="beep"><i></i></span></label>
+    <label class="box">Mod <span class="sw"><input type="checkbox" id="mod"><i></i></span></label>
+  </div>
+  <div class="row">
+    <label class="box">Contrast <b id="cv">32</b> <input type="range" id="ct" min="0" max="63" value="32"></label>
+    <button id="bdbg">Debug</button><button id="bmode">Mode</button>
+  </div>
+  <div class="row"><button id="bsave">Save</button><button id="conn">Connect</button></div>
+</header>
+<div class="chips">
+  <span class="chip bad" id="c-conn">CONN offline</span>
+  <span class="chip" id="c-ch1">CH1 RF –</span>
+  <span class="chip" id="c-ch2">CH2 RF –</span>
+  <span class="chip" id="c-mod">MOD –</span>
+  <span class="chip" id="c-beep">BEEP –</span>
+</div>
+<div id="note">Κλείσε το Serial USB Terminal, σύνδεσε τη γεννήτρια με OTG και πάτα Connect.</div>
+<main id="cards"></main>
+<section id="dbg">
+  <div id="log"></div>
+  <div class="row">
+    <input type="text" id="raw" placeholder="$A*" autocapitalize="off" autocomplete="off">
+    <button id="rawsend">Send</button>
+    <button id="qa">$A*</button>
+    <button id="clr">Clear</button>
+  </div>
+  <div class="row">Σύνδεση μέσω
+    <select id="tmode"><option value="auto">Αυτόματα</option><option value="usb">WebUSB (FTDI)</option><option value="serial">Web Serial</option></select>
+  </div>
+</section>
+
+<script>
+const $=s=>document.querySelector(s);
+const enc=new TextEncoder(),dec=new TextDecoder();
+let tr=null;
+
+/* ---------- debug log ---------- */
+const logEl=$('#log');
+function log(cls,t){
+  const d=document.createElement('div');d.className=cls;
+  d.textContent=(cls==='tx'?'TX ':cls==='rx'?'RX ':'')+t;
+  logEl.append(d);logEl.scrollTop=logEl.scrollHeight;
+  while(logEl.childElementCount>300)logEl.firstChild.remove();
+}
+function chip(id,text,cls){const e=$('#'+id);e.textContent=text;e.className='chip'+(cls?' '+cls:'');}
+async function send(cmd){
+  if(!tr){log('err','Δεν υπάρχει σύνδεση — πάτα Connect');return false;}
+  try{await tr.write(cmd);log('tx',cmd);return true;}
+  catch(e){log('err',e.message||String(e));return false;}
+}
+function onRx(t){log('rx',t.replace(/\r/g,'\\r').replace(/\n/g,'\\n'));}
+
+/* ---------- transports ---------- */
+async function usbConnect(){
+  const d=await navigator.usb.requestDevice({filters:[{vendorId:0x0403}]});
+  await d.open();
+  if(!d.configuration)await d.selectConfiguration(1);
+  await d.claimInterface(0);
+  const eps=d.configuration.interfaces[0].alternates[0].endpoints;
+  const epIn=eps.find(e=>e.direction==='in'&&e.type==='bulk').endpointNumber;
+  const epOut=eps.find(e=>e.direction==='out'&&e.type==='bulk').endpointNumber;
+  const ctl=(request,value,index=0)=>d.controlTransferOut({requestType:'vendor',recipient:'device',request,value,index});
+  await ctl(0,0);        // reset
+  await ctl(3,0x4138);   // 9600 baud (FT232R)
+  await ctl(4,0x0008);   // 8N1
+  await ctl(2,0,0);      // no flow control
+  let open=true;
+  (async()=>{
+    while(open){
+      try{
+        const r=await d.transferIn(epIn,64);
+        const u=new Uint8Array(r.data.buffer,r.data.byteOffset,r.data.byteLength);
+        let s='';
+        for(let i=0;i<u.length;i+=64){const c=u.subarray(i+2,Math.min(i+64,u.length));if(c.length)s+=dec.decode(c);}
+        if(s)onRx(s);
+      }catch(e){if(open)log('err',e.message||String(e));break;}
+    }
+    if(open){open=false;disc();}
+  })();
+  const onUnplug=ev=>{if(ev.device===d){open=false;disc();}};
+  navigator.usb.addEventListener('disconnect',onUnplug);
+  return{
+    name:'WebUSB',
+    write:s=>d.transferOut(epOut,enc.encode(s)),
+    close:async()=>{open=false;navigator.usb.removeEventListener('disconnect',onUnplug);
+      try{await d.releaseInterface(0);}catch(e){}try{await d.close();}catch(e){}}
+  };
+}
+async function serConnect(){
+  const p=await navigator.serial.requestPort();
+  await p.open({baudRate:9600,dataBits:8,parity:'none',stopBits:1,flowControl:'none'});
+  const w=p.writable.getWriter(),rd=p.readable.getReader();
+  let open=true;
+  (async()=>{
+    try{while(open){const{value,done}=await rd.read();if(done)break;if(value)onRx(dec.decode(value));}}catch(e){}
+    if(open){open=false;disc();}
+  })();
+  return{
+    name:'Web Serial',
+    write:s=>w.write(enc.encode(s)),
+    close:async()=>{open=false;try{await rd.cancel();}catch(e){}
+      try{rd.releaseLock();w.releaseLock();await p.close();}catch(e){}}
+  };
+}
+
+/* ---------- connect / disconnect ---------- */
+function disc(){
+  tr=null;
+  $('#conn').textContent='Connect';$('#conn').classList.remove('on');
+  chip('c-conn','CONN offline','bad');
+  log('inf','Αποσυνδέθηκε');
+}
+$('#conn').onclick=async()=>{
+  if(tr){const t=tr;tr=null;await t.close();disc();return;}
+  const m=$('#tmode').value;
+  const hasUsb='usb' in navigator,hasSer='serial' in navigator;
+  const useUsb=m==='usb'||(m==='auto'&&hasUsb&&(/Android/i.test(navigator.userAgent)||!hasSer));
+  try{
+    if(useUsb&&!hasUsb)throw new Error('Ο browser δεν υποστηρίζει WebUSB');
+    if(!useUsb&&!hasSer)throw new Error('Ο browser δεν υποστηρίζει Web Serial');
+    tr=useUsb?await usbConnect():await serConnect();
+    $('#conn').textContent='Disconnect';$('#conn').classList.add('on');
+    chip('c-conn','CONN '+tr.name,'ok');
+    log('inf','Συνδέθηκε ('+tr.name+', 9600 8N1)');
+    send('$A*');
+  }catch(e){
+    tr=null;
+    $('#dbg').classList.add('show');
+    log('err',(e.name==='NotFoundError'?'Δεν επιλέχθηκε συσκευή: ':'')+(e.message||String(e)));
+  }
+};
+
+/* ---------- header controls ---------- */
+$('#bdbg').onclick=()=>$('#dbg').classList.toggle('show');
+$('#bmode').onclick=()=>send('$N*');
+$('#bsave').onclick=()=>send('$S*');
+$('#beep').onchange=async e=>{if(await send(e.target.checked?'$E3232*':'$E3333*'))chip('c-beep','BEEP '+(e.target.checked?'ON':'OFF'),'ok');else e.target.checked=!e.target.checked;};
+$('#mod').onchange=async e=>{if(await send(e.target.checked?'$E3838*':'$E3939*'))chip('c-mod','MOD '+(e.target.checked?'ON':'OFF'),'ok');else e.target.checked=!e.target.checked;};
+$('#ct').oninput=e=>$('#cv').textContent=e.target.value;
+$('#ct').onchange=e=>send('$C'+String(Math.min(63,Math.max(0,+e.target.value))).padStart(2,'0')+'*');
+$('#rawsend').onclick=()=>{const v=$('#raw').value.trim();if(v)send(v);};
+$('#raw').onkeydown=e=>{if(e.key==='Enter')$('#rawsend').click();};
+$('#qa').onclick=()=>send('$A*');
+$('#clr').onclick=()=>logEl.replaceChildren();
+
+/* ---------- channel cards ---------- */
+const fmt=n=>String(n).replace(/\B(?=(\d{3})+(?!\d))/g,"'");
+const CH=[
+  {n:1,title:'CH 1 · Frequency',range:'Εύρος: 1 Hz – 250 MHz · Ανάλυση 1 Hz',
+   units:[['Hz',1],['kHz',1e3],['MHz',1e6]],u:1,min:1,max:250e6,step:1,digits:9,def:10e6,on:'$E3434*',off:'$E3535*'},
+  {n:2,title:'CH 2 · Frequency',range:'Εύρος: 35 MHz – 8 GHz · Ανάλυση 10 Hz',
+   units:[['Hz',1],['kHz',1e3],['MHz',1e6],['GHz',1e9]],u:2,min:35e6,max:8e9,step:10,digits:10,def:100e6,on:'$E3636*',off:'$E3737*'}
+];
+CH.forEach(c=>{
+  c.txt='';
+  const s=document.createElement('section');s.className='card';
+  s.innerHTML=`<h2>${c.title}</h2><p>${c.range}</p>
+  <div class="lcd"><div class="live">LAST SENT</div><div class="val">${fmt(c.def)} Hz</div></div>
+  <div class="lcd inp">εισάγετε συχνότητα…</div>
+  <div class="units">${c.units.map((u,i)=>`<button data-i="${i}" class="${i===c.u?'sel':''}">${u[0]}</button>`).join('')}</div>
+  <div class="pad">${['7','8','9','4','5','6','1','2','3','.','0','⌫'].map(k=>`<button data-k="${k}">${k}</button>`).join('')}</div>
+  <div class="act"><button class="clr">Clear</button><button class="set">Set frequency</button><button class="on">RF ON</button><button class="off">RF OFF</button></div>`;
+  $('#cards').append(s);
+  const inp=s.querySelector('.inp'),val=s.querySelector('.val');
+  const show=()=>{inp.classList.remove('err');inp.textContent=c.txt?c.txt+' '+c.units[c.u][0]:'εισάγετε συχνότητα…';};
+  s.querySelectorAll('.units button').forEach(b=>b.onclick=()=>{
+    c.u=+b.dataset.i;s.querySelectorAll('.units button').forEach(x=>x.classList.toggle('sel',x===b));show();});
+  s.querySelectorAll('.pad button').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.k;
+    if(k==='⌫')c.txt=c.txt.slice(0,-1);
+    else if(k==='.'){if(!c.txt.includes('.'))c.txt+=c.txt?'.':'0.';}
+    else if(c.txt.length<12)c.txt+=k;
+    show();});
+  s.querySelector('.clr').onclick=()=>{c.txt='';show();};
+  s.querySelector('.set').onclick=async()=>{
+    let hz=Math.round(parseFloat(c.txt)*c.units[c.u][1]);
+    if(!isFinite(hz)){return;}
+    hz=Math.round(hz/c.step)*c.step;
+    if(hz<c.min||hz>c.max){inp.classList.add('err');inp.textContent='Εκτός ορίων: '+fmt(c.min)+' – '+fmt(c.max)+' Hz';return;}
+    const cmd='$F'+c.n+String(hz).padStart(c.digits,'0')+'*';
+    if(await send(cmd)){val.textContent=fmt(hz)+' Hz';c.txt='';show();}
+  };
+  s.querySelector('.on').onclick=async()=>{if(await send(c.on))chip('c-ch'+c.n,'CH'+c.n+' RF ON','ok');};
+  s.querySelector('.off').onclick=async()=>{if(await send(c.off))chip('c-ch'+c.n,'CH'+c.n+' RF OFF');};
+});
+
+if(!('usb' in navigator)&&!('serial' in navigator))
+  $('#note').textContent='Αυτός ο browser δεν υποστηρίζει WebUSB/Web Serial. Χρησιμοποίησε Chrome ή Edge.';
+</script>
+</body>
+</html>
